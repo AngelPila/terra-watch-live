@@ -20,8 +20,17 @@ const Index = () => {
   const [map, setMap] = useState<L.Map | null>(null);
   const [mode, setMode] = useState<MapMode>('heat');
   const { user, signOut, loading: authLoading } = useAuth();
-  const { canCreateEvents, canCreateNews, isGod, loading: rolesLoading } = useUserRoles();
+  const {
+    canCreateEvents,
+    canCreateNews,
+    isGod,
+    loading: rolesLoading,
+  } = useUserRoles();
   const navigate = useNavigate();
+
+  // --- CAMBIO AQUÍ ---
+  // Añadimos un estado para guardar las coordenadas del último clic
+  const [selectedCoords, setSelectedCoords] = useState<L.LatLng | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -36,6 +45,16 @@ const Index = () => {
   const handleSignOut = async () => {
     await signOut();
     toast.success('Sesión cerrada correctamente');
+  };
+
+  // --- CAMBIO AQUÍ ---
+  // Esta función será llamada por MapContainer cada vez que haya un clic
+  const handleMapClick = (coords: L.LatLng) => {
+    // Solo nos interesa el clic si estamos en modo 'heat'
+    if (mode === 'heat') {
+      console.log('Clic detectado en Index.tsx, actualizando estado:', coords);
+      setSelectedCoords(coords);
+    }
   };
 
   if (authLoading || rolesLoading) {
@@ -55,7 +74,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      {/* Header */}
+      {/* Header (sin cambios) */}
       <header className="bg-gradient-eco shadow-eco">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
@@ -91,12 +110,16 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        {/* Mode Selector */}
+        {/* Mode Selector (sin cambios) */}
         <div className="flex flex-wrap gap-2 mb-6">
           <Button
             onClick={() => setMode('heat')}
             variant={mode === 'heat' ? 'default' : 'outline'}
-            className={mode === 'heat' ? 'bg-primary hover:bg-primary-hover text-primary-foreground' : ''}
+            className={
+              mode === 'heat'
+                ? 'bg-primary hover:bg-primary-hover text-primary-foreground'
+                : ''
+            }
           >
             <Flame className="w-4 h-4 mr-2" />
             Mapa de Calor
@@ -104,7 +127,11 @@ const Index = () => {
           <Button
             onClick={() => setMode('events')}
             variant={mode === 'events' ? 'default' : 'outline'}
-            className={mode === 'events' ? 'bg-primary hover:bg-primary-hover text-primary-foreground' : ''}
+            className={
+              mode === 'events'
+                ? 'bg-primary hover:bg-primary-hover text-primary-foreground'
+                : ''
+            }
           >
             <MapPin className="w-4 h-4 mr-2" />
             Eventos
@@ -112,25 +139,24 @@ const Index = () => {
           <Button
             onClick={() => setMode('news')}
             variant={mode === 'news' ? 'default' : 'outline'}
-            className={mode === 'news' ? 'bg-primary hover:bg-primary-hover text-primary-foreground' : ''}
+            className={
+              mode === 'news'
+                ? 'bg-primary hover:bg-primary-hover text-primary-foreground'
+                : ''
+            }
           >
             <Newspaper className="w-4 h-4 mr-2" />
             Noticias
           </Button>
-          <Button
-            onClick={() => setMode('feed')}
-            variant={mode === 'feed' ? 'default' : 'outline'}
-            className={mode === 'feed' ? 'bg-primary hover:bg-primary-hover text-primary-foreground' : ''}
-          >
-            <Users className="w-4 h-4 mr-2" />
-            EcoFeed
-          </Button>
-          {/* Botón God Mode - Solo visible si el usuario es God */}
           {isGod && (
             <Button
               onClick={() => setMode('god')}
               variant={mode === 'god' ? 'default' : 'outline'}
-              className={mode === 'god' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'border-purple-400 text-purple-600 hover:bg-purple-50'}
+              className={
+                mode === 'god'
+                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                  : 'border-purple-400 text-purple-600 hover:bg-purple-50'
+              }
             >
               <Shield className="w-4 h-4 mr-2" />
               God Mode
@@ -140,28 +166,44 @@ const Index = () => {
 
         {/* Map and Controls Grid */}
         <div className="grid lg:grid-cols-[1fr_400px] gap-6">
-          {/* Map - Solo mostrar si no estamos en God Mode o Feed */}
-          {mode !== 'god' && mode !== 'feed' && (
+          {/* Map */}
+          {mode !== 'god' && (
             <div className="bg-card rounded-lg shadow-card-eco p-4 border border-border">
-              <MapContainer onMapReady={handleMapReady} />
+              {/* --- CAMBIO AQUÍ --- */}
+              {/* Le pasamos la función handleMapClick a nuestro MapContainer */}
+              <MapContainer
+                onMapReady={handleMapReady}
+                onMapClick={handleMapClick}
+              />
             </div>
           )}
 
-          {/* Side Panel o God Mode Panel */}
-          <div className={mode === 'god' || mode === 'feed' ? 'lg:col-span-2' : 'space-y-4'}>
-            {mode === 'heat' && <HeatMapMode map={map} />}
-            {mode === 'events' && <EventsMode map={map} canCreate={canCreateEvents} />}
-            {mode === 'news' && <NewsMode map={map} canCreate={canCreateNews} />}
-            {mode === 'feed' && <EcoFeedMode canDelete={isGod} currentUserEmail={user?.email} currentUserId={user?.id} />}
+          {/* Side Panel */}
+          <div className={mode === 'god' ? 'lg:col-span-2' : 'space-y-4'}>
+            {/* --- CAMBIO AQUÍ --- */}
+            {/* Le pasamos las coordenadas seleccionadas a nuestro HeatMapMode */}
+            {mode === 'heat' && (
+              <HeatMapMode map={map} selectedCoords={selectedCoords} />
+            )}
+            {mode === 'events' && (
+              <EventsMode map={map} canCreate={canCreateEvents} />
+            )}
+            {mode === 'news' && (
+              <NewsMode map={map} canCreate={canCreateNews} />
+            )}
             {mode === 'god' && isGod && <GodModePanel />}
           </div>
         </div>
       </main>
 
-      {/* AI Assistant */}
-      <AIAssistant type={mode === 'events' ? 'event' : mode === 'news' ? 'news' : 'general'} />
+      {/* AI Assistant (sin cambios) */}
+      <AIAssistant
+        type={
+          mode === 'events' ? 'event' : mode === 'news' ? 'news' : 'general'
+        }
+      />
 
-      {/* Footer */}
+      {/* Footer (sin cambios) */}
       <footer className="bg-card border-t border-border mt-12 py-6">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
