@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
-type UserRole = 'viewer' | 'news_creator' | 'event_creator';
+type UserRole = 'viewer' | 'news_creator' | 'event_creator' | 'god';
 
 export const useUserRoles = () => {
   const { user } = useAuth();
@@ -38,8 +38,9 @@ export const useUserRoles = () => {
   }, [user]);
 
   const hasRole = (role: UserRole) => roles.includes(role);
-  const canCreateNews = hasRole('news_creator');
-  const canCreateEvents = hasRole('event_creator');
+  const canCreateNews = hasRole('news_creator') || hasRole('god');
+  const canCreateEvents = hasRole('event_creator') || hasRole('god');
+  const isGod = hasRole('god');
 
   return {
     roles,
@@ -47,5 +48,6 @@ export const useUserRoles = () => {
     hasRole,
     canCreateNews,
     canCreateEvents,
+    isGod,
   };
 };

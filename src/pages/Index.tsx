@@ -6,19 +6,20 @@ import HeatMapMode from '@/components/HeatMapMode';
 import EventsMode from '@/components/EventsMode';
 import NewsMode from '@/components/NewsMode';
 import AIAssistant from '@/components/AIAssistant';
+import GodModePanel from '@/components/GodModePanel';
 import { Button } from '@/components/ui/button';
-import { Flame, MapPin, Newspaper, LogOut, User } from 'lucide-react';
+import { Flame, MapPin, Newspaper, LogOut, User, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { toast } from 'sonner';
 
-type MapMode = 'heat' | 'events' | 'news';
+type MapMode = 'heat' | 'events' | 'news' | 'god';
 
 const Index = () => {
   const [map, setMap] = useState<L.Map | null>(null);
   const [mode, setMode] = useState<MapMode>('heat');
   const { user, signOut, loading: authLoading } = useAuth();
-  const { canCreateEvents, canCreateNews, loading: rolesLoading } = useUserRoles();
+  const { canCreateEvents, canCreateNews, isGod, loading: rolesLoading } = useUserRoles();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -115,20 +116,34 @@ const Index = () => {
             <Newspaper className="w-4 h-4 mr-2" />
             Noticias
           </Button>
+          {/* Botón God Mode - Solo visible si el usuario es God */}
+          {isGod && (
+            <Button
+              onClick={() => setMode('god')}
+              variant={mode === 'god' ? 'default' : 'outline'}
+              className={mode === 'god' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'border-purple-400 text-purple-600 hover:bg-purple-50'}
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              God Mode
+            </Button>
+          )}
         </div>
 
         {/* Map and Controls Grid */}
         <div className="grid lg:grid-cols-[1fr_400px] gap-6">
-          {/* Map */}
-          <div className="bg-card rounded-lg shadow-card-eco p-4 border border-border">
-            <MapContainer onMapReady={handleMapReady} />
-          </div>
+          {/* Map - Solo mostrar si no estamos en God Mode */}
+          {mode !== 'god' && (
+            <div className="bg-card rounded-lg shadow-card-eco p-4 border border-border">
+              <MapContainer onMapReady={handleMapReady} />
+            </div>
+          )}
 
-          {/* Side Panel */}
-          <div className="space-y-4">
+          {/* Side Panel o God Mode Panel */}
+          <div className={mode === 'god' ? 'lg:col-span-2' : 'space-y-4'}>
             {mode === 'heat' && <HeatMapMode map={map} />}
             {mode === 'events' && <EventsMode map={map} canCreate={canCreateEvents} />}
             {mode === 'news' && <NewsMode map={map} canCreate={canCreateNews} />}
+            {mode === 'god' && isGod && <GodModePanel />}
           </div>
         </div>
       </main>
