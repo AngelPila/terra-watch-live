@@ -19,62 +19,96 @@ interface MapContainerProps {
 }
 
 const MapContainer = ({ onMapReady, onMapClick }: MapContainerProps) => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  // guardamos el handler actual para poder eliminarlo luego
+  const clickHandlerRef = useRef<((e: L.LeafletMouseEvent) => void) | null>(null);
 
-  // --- EFECTO 1: CREAR EL MAPA ---
+  // --- EFECTO 1: CREAR EL MAPA (solo una vez) ---
   useEffect(() => {
-    if (mapContainerRef.current && !mapInstanceRef.current) {
-      // 🌍 Crear el mapa con límites globales (sin repeticiones infinitas)
-      const map = L.map(mapContainerRef.current, {
-        center: [0, 0],
-        zoom: 2,
-        worldCopyJump: false, // evita saltos entre copias del mapa
-        maxBounds: [
-          [-90, -180], // esquina suroeste del mundo
-          [90, 180],   // esquina noreste del mundo
-        ],
-        maxBoundsViscosity: 1.0, // no deja salir del área
-      });
+    if (!mapRef.current || mapInstanceRef.current) return;
 
-      // 🌐 Capa base de OpenStreetMap sin repetición
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19,
-        noWrap: true, // 🚫 evita repeticiones horizontales
-      }).addTo(map);
+    // Crear el mapa centrado en [20, 0] con zoom 2
+    const map = L.map(mapRef.current, {
+      center: [20, 0],
+      zoom: 2,
+      worldCopyJump: false,
+      // Limites globales para evitar desplazamiento infinito
+      maxBounds: [
+        [-90, -180], // suroeste
+        [90, 180],   // noreste
+      ],
+      maxBoundsViscosity: 1.0,
+    });
 
-      mapInstanceRef.current = map;
-      onMapReady(map);
+    // Capa base (OpenStreetMap) sin repetición horizontal
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+      noWrap: true,
+    }).addTo(map);
+
+    // Si onMapClick está presente al inicializar, la añadimos
+    if (onMapClick) {
+      const initialHandler = (e: L.LeafletMouseEvent) => {
+        onMapClick(e.latlng);
+      };
+      map.on('click', initialHandler);
+      clickHandlerRef.current = initialHandler;
     }
 
+    mapInstanceRef.current = map;
+    onMapReady(map);
+
+    // limpieza cuando el componente se desmonte
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+      try {
+        if (clickHandlerRef.current) {
+          map.off('click', clickHandlerRef.current);
+          clickHandlerRef.current = null;
+        }
+        map.remove();
+      } catch (err) {
+        // noop
+      } finally {
         mapInstanceRef.current = null;
       }
     };
-  }, [onMapReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // se ejecuta una sola vez al montar
 
-  // --- EFECTO 2: MANEJAR CLICS ---
+  // --- EFECTO 2: Actualizar/eliminar el listener de clic cuando onMapClick cambie ---
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const handleClick = (e: L.LeafletMouseEvent) => {
-      if (onMapClick) onMapClick(e.latlng);
-    };
+    // Si ya hay un handler registrado, lo quitamos primero
+    if (clickHandlerRef.current) {
+      map.off('click', clickHandlerRef.current);
+      clickHandlerRef.current = null;
+    }
 
-    map.on('click', handleClick);
+    // Si la nueva prop onMapClick existe, añadimos el nuevo handler
+    if (onMapClick) {
+      const handler = (e: L.LeafletMouseEvent) => {
+        onMapClick(e.latlng);
+      };
+      map.on('click', handler);
+      clickHandlerRef.current = handler;
+    }
 
+    // cleanup cuando onMapClick cambie o el componente se desmonte
     return () => {
-      map.off('click', handleClick);
+      if (clickHandlerRef.current) {
+        map.off('click', clickHandlerRef.current);
+        clickHandlerRef.current = null;
+      }
     };
   }, [onMapClick]);
 
   return (
     <div
-      ref={mapContainerRef}
+      ref={mapRef}
       className="w-full h-full rounded-lg shadow-card-eco"
       style={{ minHeight: '500px' }}
     />
