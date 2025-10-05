@@ -2,44 +2,33 @@ import { useEffect, useState } from 'react';
 import L from 'leaflet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Newspaper, Plus, ExternalLink } from 'lucide-react';
+import { Newspaper, Plus, ExternalLink, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface News {
   id: string;
   title: string;
   description: string;
   link?: string;
-  lat: number;
-  lng: number;
+  latitude: number;
+  longitude: number;
+  created_by: string;
 }
 
 interface NewsModeProps {
   map: L.Map | null;
+  canCreate: boolean;
 }
 
-const NewsMode = ({ map }: NewsModeProps) => {
-  const [news, setNews] = useState<News[]>([
-    {
-      id: '1',
-      title: 'Nueva Reserva Natural Protegida',
-      description: 'Se establece una nueva área de conservación de 1000 hectáreas',
-      link: 'https://example.com/news1',
-      lat: 43.2630,
-      lng: -2.9350
-    },
-    {
-      id: '2',
-      title: 'Reducción de Emisiones en la Ciudad',
-      description: 'Implementación exitosa de zona de bajas emisiones',
-      link: 'https://example.com/news2',
-      lat: 39.4699,
-      lng: -0.3763
-    }
-  ]);
+const NewsMode = ({ map, canCreate }: NewsModeProps) => {
+  const [news, setNews] = useState<News[]>([]);
   const [markers, setMarkers] = useState<L.Marker[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -63,15 +52,42 @@ const NewsMode = ({ map }: NewsModeProps) => {
     iconAnchor: [15, 15],
   });
 
+  // Fetch news from database
+  useEffect(() => {
+    const fetchNews = async () => {
+      const { data, error } = await supabase
+        .from('news')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching news:', error);
+        toast.error('Error al cargar noticias');
+        return;
+      }
+
+      setNews(data.map(n => ({
+        id: n.id,
+        title: n.title,
+        description: n.description,
+        link: n.link || undefined,
+        latitude: n.latitude,
+        longitude: n.longitude,
+        created_by: n.created_by
+      })));
+    };
+
+    fetchNews();
+  }, []);
+
+  // Update markers when news change
   useEffect(() => {
     if (!map) return;
 
-    // Clear existing markers
     markers.forEach(marker => map.removeLayer(marker));
 
-    // Add markers for all news
     const newMarkers = news.map(item => {
-      const marker = L.marker([item.lat, item.lng], { icon: newsIcon })
+      const marker = L.marker([item.latitude, item.longitude], { icon: newsIcon })
         .addTo(map);
       
       marker.on('click', () => {
@@ -88,22 +104,56 @@ const NewsMode = ({ map }: NewsModeProps) => {
     };
   }, [map, news]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newNewsItem: News = {
-      id: Date.now().toString(),
-      title: formData.title,
-      description: formData.description,
-      link: formData.link || undefined,
-      lat: parseFloat(formData.lat),
-      lng: parseFloat(formData.lng)
-    };
+    if (!user) {
+      toast.error('Debes iniciar sesión');
+      return;
+    }
 
-    setNews([...news, newNewsItem]);
-    setFormData({ title: '', description: '', link: '', lat: '', lng: '' });
-    setShowForm(false);
-    toast.success('Noticia agregada correctamente');
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('news')
+        .insert([{
+          title: formData.title,
+          description: formData.description,
+          link: formData.link || null,
+          latitude: parseFloat(formData.lat),
+          longitude: parseFloat(formData.lng),
+          created_by: user.id
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating news:', error);
+        toast.error('Error al crear noticia. Verifica tus permisos.');
+        return;
+      }
+
+      const newNewsItem: News = {
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        link: data.link || undefined,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        created_by: data.created_by
+      };
+
+      setNews([newNewsItem, ...news]);
+      setFormData({ title: '', description: '', link: '', lat: '', lng: '' });
+      setShowForm(false);
+      toast.success('Noticia creada correctamente');
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      toast.error('Error inesperado al crear noticia');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -114,17 +164,24 @@ const NewsMode = ({ map }: NewsModeProps) => {
             <Newspaper className="w-5 h-5 text-primary" />
             <h3 className="text-lg font-semibold text-foreground">Noticias Ambientales</h3>
           </div>
-          <Button 
-            onClick={() => setShowForm(!showForm)}
-            size="sm"
-            className="bg-primary hover:bg-primary-hover text-primary-foreground"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Agregar Noticia
-          </Button>
+          {canCreate ? (
+            <Button 
+              onClick={() => setShowForm(!showForm)}
+              size="sm"
+              className="bg-primary hover:bg-primary-hover text-primary-foreground"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Agregar Noticia
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Lock className="w-4 h-4" />
+              <span>Solo creadores</span>
+            </div>
+          )}
         </div>
 
-        {showForm && (
+        {showForm && canCreate && (
           <form onSubmit={handleSubmit} className="space-y-4 mb-4 p-4 bg-muted rounded-lg border border-border">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Título</label>
@@ -184,8 +241,12 @@ const NewsMode = ({ map }: NewsModeProps) => {
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" className="flex-1 bg-primary hover:bg-primary-hover text-primary-foreground">
-                Agregar
+              <Button 
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-primary hover:bg-primary-hover text-primary-foreground"
+              >
+                {loading ? 'Creando...' : 'Agregar'}
               </Button>
               <Button 
                 type="button" 
@@ -230,16 +291,22 @@ const NewsMode = ({ map }: NewsModeProps) => {
         <div className="space-y-2">
           <h4 className="text-sm font-semibold text-foreground">Noticias Recientes</h4>
           <div className="space-y-2 max-h-60 overflow-y-auto">
-            {news.map(item => (
-              <div 
-                key={item.id} 
-                className="p-3 bg-muted rounded-md border border-border cursor-pointer hover:bg-muted/80 transition-colors"
-                onClick={() => setSelectedNews(item)}
-              >
-                <p className="font-medium text-sm text-foreground">{item.title}</p>
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
-              </div>
-            ))}
+            {news.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No hay noticias registradas
+              </p>
+            ) : (
+              news.map(item => (
+                <div 
+                  key={item.id} 
+                  className="p-3 bg-muted rounded-md border border-border cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => setSelectedNews(item)}
+                >
+                  <p className="font-medium text-sm text-foreground">{item.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </Card>
