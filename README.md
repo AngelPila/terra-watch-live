@@ -3,9 +3,11 @@
 1. Create an environment file to store the API key. Add it both in the project root (`.env.local`) and inside the `prediction_api` folder (`.env`) with the following content:
 
    ```
-   VITE_OPENWEATHERMAP_API_KEY=
-   OWM_API_KEY=
+   VITE_OPENWEATHERMAP_API_KEY="4a8ecf18eb0954c0c1b546696bfc9719"
+   OWM_API_KEY="4a8ecf18eb0954c0c1b546696bfc9719"
    ```
+
+   > **Note:** These API keys are available for reviewers to test the project. However, they will be disabled on **October 8, 2025**.
 
 2. Upload the trained model into the `prediction_api` folder.
 
