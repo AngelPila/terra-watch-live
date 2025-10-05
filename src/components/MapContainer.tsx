@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix for default marker icons (tu código original)
+// 🔧 Fix para los íconos por defecto de Leaflet (evita errores al cargar los marcadores)
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -22,64 +22,59 @@ const MapContainer = ({ onMapReady, onMapClick }: MapContainerProps) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
-  // --- EFECTO 1: CREAR EL MAPA (SE EJECUTA UNA SOLA VEZ) ---
+  // --- EFECTO 1: CREAR EL MAPA ---
   useEffect(() => {
-    // Si el div del mapa existe y la instancia del mapa aún no ha sido creada...
     if (mapContainerRef.current && !mapInstanceRef.current) {
-      const map = L.map(mapContainerRef.current).setView(
-        [40.4168, -3.7038],
-        6,
-      );
+      // 🌍 Crear el mapa con límites globales (sin repeticiones infinitas)
+      const map = L.map(mapContainerRef.current, {
+        center: [0, 0],
+        zoom: 2,
+        worldCopyJump: false, // evita saltos entre copias del mapa
+        maxBounds: [
+          [-90, -180], // esquina suroeste del mundo
+          [90, 180],   // esquina noreste del mundo
+        ],
+        maxBoundsViscosity: 1.0, // no deja salir del área
+      });
 
+      // 🌐 Capa base de OpenStreetMap sin repetición
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19,
+        noWrap: true, // 🚫 evita repeticiones horizontales
       }).addTo(map);
 
-      // Guardamos la instancia del mapa en una ref para que persista entre renders
       mapInstanceRef.current = map;
-
-      // Notificamos al componente padre que el mapa está listo
       onMapReady(map);
     }
 
-    // La función de limpieza se ejecutará SOLO cuando el componente se desmonte del todo
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
-    // El array de dependencias vacío [] es la clave.
-    // Le dice a React: "Ejecuta este efecto SOLO UNA VEZ al montar y nunca más".
   }, [onMapReady]);
 
-  // --- EFECTO 2: GESTIONAR EL LISTENER DE CLIC ---
+  // --- EFECTO 2: MANEJAR CLICS ---
   useEffect(() => {
     const map = mapInstanceRef.current;
-    // Si el mapa no existe, no hacemos nada
     if (!map) return;
 
-    // Creamos una función manejadora para el clic que podamos añadir y quitar
     const handleClick = (e: L.LeafletMouseEvent) => {
-      if (onMapClick) {
-        onMapClick(e.latlng);
-      }
+      if (onMapClick) onMapClick(e.latlng);
     };
 
-    // Añadimos el listener de clics al mapa
     map.on('click', handleClick);
 
-    // La función de limpieza de ESTE efecto se ejecuta si onMapClick cambia o el componente se desmonta
     return () => {
-      // Quitamos el listener para evitar duplicados y fugas de memoria
       map.off('click', handleClick);
     };
-  }, [onMapClick]); // Este efecto se re-ejecuta solo si la prop onMapClick cambia
+  }, [onMapClick]);
 
   return (
     <div
-      ref={mapContainerRef} // Usamos la ref para que React nos dé el elemento div
+      ref={mapContainerRef}
       className="w-full h-full rounded-lg shadow-card-eco"
       style={{ minHeight: '500px' }}
     />
