@@ -148,6 +148,15 @@ const Index = () => {
             <Newspaper className="w-4 h-4 mr-2" />
             Noticias
           </Button>
+          <Button
+            onClick={() => setMode('feed')}
+            variant={mode === 'feed' ? 'default' : 'outline'}
+            className={mode === 'feed' ? 'bg-primary hover:bg-primary-hover text-primary-foreground' : ''}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            EcoFeed
+          </Button>
+          {/* Botón God Mode - Solo visible si el usuario es God */}
           {isGod && (
             <Button
               onClick={() => setMode('god')}
@@ -166,8 +175,8 @@ const Index = () => {
 
         {/* Map and Controls Grid */}
         <div className="grid lg:grid-cols-[1fr_400px] gap-6">
-          {/* Map */}
-          {mode !== 'god' && (
+          {/* Map - Solo mostrar si no estamos en God Mode o Feed */}
+          {mode !== 'god' && mode !== 'feed' && (
             <div className="bg-card rounded-lg shadow-card-eco p-4 border border-border">
               {/* --- CAMBIO AQUÍ --- */}
               {/* Le pasamos la función handleMapClick a nuestro MapContainer */}
@@ -178,19 +187,12 @@ const Index = () => {
             </div>
           )}
 
-          {/* Side Panel */}
-          <div className={mode === 'god' ? 'lg:col-span-2' : 'space-y-4'}>
-            {/* --- CAMBIO AQUÍ --- */}
-            {/* Le pasamos las coordenadas seleccionadas a nuestro HeatMapMode */}
-            {mode === 'heat' && (
-              <HeatMapMode map={map} selectedCoords={selectedCoords} />
-            )}
-            {mode === 'events' && (
-              <EventsMode map={map} canCreate={canCreateEvents} />
-            )}
-            {mode === 'news' && (
-              <NewsMode map={map} canCreate={canCreateNews} />
-            )}
+          {/* Side Panel o God Mode Panel */}
+          <div className={mode === 'god' || mode === 'feed' ? 'lg:col-span-2' : 'space-y-4'}>
+            {mode === 'heat' && <HeatMapMode map={map} />}
+            {mode === 'events' && <EventsMode map={map} canCreate={canCreateEvents} />}
+            {mode === 'news' && <NewsMode map={map} canCreate={canCreateNews} />}
+            {mode === 'feed' && <EcoFeedMode canDelete={isGod} currentUserEmail={user?.email} currentUserId={user?.id} />}
             {mode === 'god' && isGod && <GodModePanel />}
           </div>
         </div>
